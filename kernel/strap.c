@@ -25,9 +25,7 @@ static void handle_syscall(trapframe *tf) {
 
   // $ SOLUTION
   // panic( "call do_syscall to accomplish the syscall and lab1_1 here.\n" );
-  char string_to_print[] = "Hello world!\n";
-  uint64 return_value = do_syscall(SYS_user_print, (long) &string_to_print, 14, 0, 0, 0, 0, 0);
-  do_syscall(SYS_user_exit, return_value, 0, 0, 0, 0, 0, 0);
+  do_syscall(tf->regs.a0, tf->regs.a1, tf->regs.a2, tf->regs.a3, tf->regs.a4, tf->regs.a5, tf->regs.a6, tf->regs.a7);
 }
 
 //
