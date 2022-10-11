@@ -1,5 +1,5 @@
-#include "kernel/riscv.h"
 #include "kernel/process.h"
+#include "kernel/riscv.h"
 #include "spike_interface/spike_utils.h"
 
 static void handle_instruction_access_fault() { panic("Instruction access fault!"); }
@@ -18,7 +18,7 @@ static void handle_misaligned_store() { panic("Misaligned AMO!"); }
 static void handle_timer() {
   int cpuid = 0;
   // setup the timer fired at next time (TIMER_INTERVAL from now)
-  *(uint64*)CLINT_MTIMECMP(cpuid) = *(uint64*)CLINT_MTIMECMP(cpuid) + TIMER_INTERVAL;
+  *(uint64 *) CLINT_MTIMECMP(cpuid) = *(uint64 *) CLINT_MTIMECMP(cpuid) + TIMER_INTERVAL;
 
   // setup a soft interrupt in sip (S-mode Interrupt Pending) to be handled in S-mode
   write_csr(sip, SIP_SSIP);
@@ -44,8 +44,10 @@ void handle_mtrap() {
     case CAUSE_ILLEGAL_INSTRUCTION:
       // TODO (lab1_2): call handle_illegal_instruction to implement illegal instruction
       // interception, and finish lab1_2.
-      panic( "call handle_illegal_instruction to accomplish illegal instruction interception for lab1_2.\n" );
+      // panic( "call handle_illegal_instruction to accomplish illegal instruction interception for lab1_2.\n" );
 
+      // $ SOLUTION
+      handle_illegal_instruction();
       break;
     case CAUSE_MISALIGNED_LOAD:
       handle_misaligned_load();
@@ -57,7 +59,7 @@ void handle_mtrap() {
     default:
       sprint("machine trap(): unexpected mscause %p\n", mcause);
       sprint("            mepc=%p mtval=%p\n", read_csr(mepc), read_csr(mtval));
-      panic( "unexpected exception happened in M-mode.\n" );
+      panic("unexpected exception happened in M-mode.\n");
       break;
   }
 }

@@ -3,13 +3,13 @@
  */
 
 #include "vmm.h"
-#include "riscv.h"
-#include "pmm.h"
-#include "util/types.h"
 #include "memlayout.h"
-#include "util/string.h"
+#include "pmm.h"
+#include "riscv.h"
 #include "spike_interface/spike_utils.h"
 #include "util/functions.h"
+#include "util/string.h"
+#include "util/types.h"
 
 /* --- utility functions for virtual address mapping --- */
 //
@@ -21,7 +21,7 @@ int map_pages(pagetable_t page_dir, uint64 va, uint64 size, uint64 pa, int perm)
   pte_t *pte;
 
   for (first = ROUNDDOWN(va, PGSIZE), last = ROUNDDOWN(va + size - 1, PGSIZE);
-      first <= last; first += PGSIZE, pa += PGSIZE) {
+       first <= last; first += PGSIZE, pa += PGSIZE) {
     if ((pte = page_walk(page_dir, first, 1)) == 0) return -1;
     if (*pte & PTE_V)
       panic("map_pages fails on mapping va (0x%lx) to pa (0x%lx)", first, pa);
@@ -63,17 +63,17 @@ pte_t *page_walk(pagetable_t page_dir, uint64 va, int alloc) {
 
     // now, we need to know if above pte is valid (established mapping to a phyiscal page)
     // or not.
-    if (*pte & PTE_V) {  //PTE valid
+    if (*pte & PTE_V) {//PTE valid
       // phisical address of pagetable of next level
-      pt = (pagetable_t)PTE2PA(*pte);
-    } else { //PTE invalid (not exist).
+      pt = (pagetable_t) PTE2PA(*pte);
+    } else {//PTE invalid (not exist).
       // allocate a page (to be the new pagetable), if alloc == 1
-      if( alloc && ((pt = (pte_t *)alloc_page(1)) != 0) ){
+      if (alloc && ((pt = (pte_t *) alloc_page(1)) != 0)) {
         memset(pt, 0, PGSIZE);
         // writes the physical address of newly allocated page to pte, to establish the
         // page table tree.
         *pte = PA2PTE(pt) | PTE_V;
-      }else //returns NULL, if alloc == 0, or no more physical page remains
+      } else//returns NULL, if alloc == 0, or no more physical page remains
         return 0;
     }
   }
@@ -122,24 +122,24 @@ void kern_vm_init(void) {
   pagetable_t t_page_dir;
 
   // allocate a page (t_page_dir) to be the page directory for kernel. alloc_page is defined in kernel/pmm.c
-  t_page_dir = (pagetable_t)alloc_page();
+  t_page_dir = (pagetable_t) alloc_page();
   // memset is defined in util/string.c
   memset(t_page_dir, 0, PGSIZE);
 
   // map virtual address [KERN_BASE, _etext] to physical address [DRAM_BASE, DRAM_BASE+(_etext - KERN_BASE)],
   // to maintain (direct) text section kernel address mapping.
-  kern_vm_map(t_page_dir, KERN_BASE, DRAM_BASE, (uint64)_etext - KERN_BASE,
-         prot_to_type(PROT_READ | PROT_EXEC, 0));
+  kern_vm_map(t_page_dir, KERN_BASE, DRAM_BASE, (uint64) _etext - KERN_BASE,
+              prot_to_type(PROT_READ | PROT_EXEC, 0));
 
   sprint("KERN_BASE 0x%lx\n", lookup_pa(t_page_dir, KERN_BASE));
 
   // also (direct) map remaining address space, to make them accessable from kernel.
   // this is important when kernel needs to access the memory content of user's app
   // without copying pages between kernel and user spaces.
-  kern_vm_map(t_page_dir, (uint64)_etext, (uint64)_etext, PHYS_TOP - (uint64)_etext,
-         prot_to_type(PROT_READ | PROT_WRITE, 0));
+  kern_vm_map(t_page_dir, (uint64) _etext, (uint64) _etext, PHYS_TOP - (uint64) _etext,
+              prot_to_type(PROT_READ | PROT_WRITE, 0));
 
-  sprint("physical address of _etext is: 0x%lx\n", lookup_pa(t_page_dir, (uint64)_etext));
+  sprint("physical address of _etext is: 0x%lx\n", lookup_pa(t_page_dir, (uint64) _etext));
 
   g_kernel_pagetable = t_page_dir;
 }
@@ -159,8 +159,15 @@ void *user_va_to_pa(pagetable_t page_dir, void *va) {
   // (va & (1<<PGSHIFT -1)) means computing the offset of "va" inside its page.
   // Also, it is possible that "va" is not mapped at all. in such case, we can find
   // invalid PTE, and should return NULL.
-  panic( "You have to implement user_va_to_pa (convert user va to pa) to print messages in lab2_1.\n" );
+  // panic("You have to implement user_va_to_pa (convert user va to pa) to print messages in lab2_1.\n");
 
+  // $ SOLUTION
+  pte_t *pte_containing_va = page_walk(page_dir, (uint64) va, 0);
+  // * va 最终对应的物理地址
+  uint64 pa = 0;
+  if (pte_containing_va)// ? 不为空时计算偏移地址
+    pa = PTE2PA(*pte_containing_va) + (((uint64) va) & ((1 << PGSHIFT) - 1));
+  return (void *) pa;
 }
 
 //
@@ -184,6 +191,14 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
   // (use free_page() defined in pmm.c) the physical pages. lastly, invalidate the PTEs.
   // as naive_free reclaims only one page at a time, you only need to consider one page
   // to make user/app_naive_malloc to behave correctly.
-  panic( "You have to implement user_vm_unmap to free pages using naive_free in lab2_2.\n" );
+  // panic( "You have to implement user_vm_unmap to free pages using naive_free in lab2_2.\n" );
 
+  // $ SOLUTION
+  if (!free) return;// * 已经为空，无需释放
+  // * 获得虚拟地址 va 对应的页表项 PTE
+  pte_t *pte_containing_va = page_walk(page_dir, va, 0);
+  if (pte_containing_va) {                          // * 找到 PTE
+    free_page(user_va_to_pa(page_dir, (void *) va));// * 调用 lab2_1 中实现的函数计算 pa，回收 pa 对应的物理页
+    *pte_containing_va &= ~PTE_V;                   //* 将 PTE 中的 Valid 位置 0
+  }
 }

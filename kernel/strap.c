@@ -2,13 +2,13 @@
  * Utility functions for trap handling in Supervisor mode.
  */
 
-#include "riscv.h"
-#include "process.h"
 #include "strap.h"
-#include "syscall.h"
 #include "pmm.h"
-#include "vmm.h"
+#include "process.h"
+#include "riscv.h"
+#include "syscall.h"
 #include "util/functions.h"
+#include "vmm.h"
 
 #include "spike_interface/spike_utils.h"
 
@@ -25,8 +25,10 @@ static void handle_syscall(trapframe *tf) {
   // kernel/syscall.c) to conduct real operations of the kernel side for a syscall.
   // IMPORTANT: return value should be returned to user app, or else, you will encounter
   // problems in later experiments!
-  panic( "call do_syscall to accomplish the syscall and lab1_1 here.\n" );
 
+  // $ SOLUTION
+  // panic( "call do_syscall to accomplish the syscall and lab1_1 here.\n" );
+  tf->regs.a0 = do_syscall(tf->regs.a0, tf->regs.a1, tf->regs.a2, tf->regs.a3, tf->regs.a4, tf->regs.a5, tf->regs.a6, tf->regs.a7);
 }
 
 //
@@ -40,8 +42,11 @@ void handle_mtimer_trap() {
   // TODO (lab1_3): increase g_ticks to record this "tick", and then clear the "SIP"
   // field in sip register.
   // hint: use write_csr to disable the SIP_SSIP bit in sip.
-  panic( "lab1_3: increase g_ticks by one, and clear SIP field in sip register.\n" );
+  // panic("lab1_3: increase g_ticks by one, and clear SIP field in sip register.\n");
 
+  // $ SOLUTION
+  g_ticks++;
+  write_csr(sip, 0);
 }
 
 //
@@ -57,7 +62,7 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       // dynamically increase application stack.
       // hint: first allocate a new physical page, and then, maps the new page to the
       // virtual address that causes the page fault.
-      panic( "You need to implement the operations that actually handle the page fault in lab2_3.\n" );
+      panic("You need to implement the operations that actually handle the page fault in lab2_3.\n");
 
       break;
     default:
@@ -100,7 +105,7 @@ void smode_trap_handler(void) {
     default:
       sprint("smode_trap_handler(): unexpected scause %p\n", read_csr(scause));
       sprint("            sepc=%p stval=%p\n", read_csr(sepc), read_csr(stval));
-      panic( "unexpected exception happened.\n" );
+      panic("unexpected exception happened.\n");
       break;
   }
 
