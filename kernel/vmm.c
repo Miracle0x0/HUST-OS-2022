@@ -199,6 +199,6 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
   pte_t *pte_containing_va = page_walk(page_dir, va, 0);
   if (pte_containing_va) {                          // * 找到 PTE
     free_page(user_va_to_pa(page_dir, (void *) va));// * 调用 lab2_1 中实现的函数计算 pa，回收 pa 对应的物理页
-    *pte_containing_va &= ~PTE_V;                   //* 将 PTE 中的 Valid 位置 0
+    *pte_containing_va &= ~PTE_V;                   // * 将 PTE 中的 Valid 位置 0
   }
 }
