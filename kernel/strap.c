@@ -67,7 +67,18 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
       // $ SOLUTION
       // ! 默认合法
       // * 分配一个物理页，将其映射到 stval 所对应的虚拟地址上
-      user_vm_map((pagetable_t) current->pagetable, stval - stval % PGSIZE, PGSIZE, (uint64) alloc_page(), prot_to_type(PROT_WRITE | PROT_READ, 1));
+      // user_vm_map((pagetable_t) current->pagetable, stval - stval % PGSIZE, PGSIZE, (uint64) alloc_page(), prot_to_type(PROT_WRITE | PROT_READ, 1));
+
+      // # CHALLENGE (lab2_challenge1)
+      // ? 判断触发缺页异常的地址类型
+      // ! 使用 $ riscv64-unknown-elf-objdump -D ./obj/app_sum_sequence | grep sum_sequence
+      // ! 找到 sum_sequence 重定向后的地址，计算 0x100d8 - 0x100b0 + 4 = 32，即为调用一次该函数所需的栈空间大小
+      if (stval - current->trapframe->regs.sp < 32) {// * 由于超过栈底而触发缺页异常，则扩大内核栈
+        user_vm_map((pagetable_t) current->pagetable, stval - stval % PGSIZE, PGSIZE, (uint64) alloc_page(), prot_to_type(PROT_WRITE | PROT_READ, 1));
+      } else {// * 访问非法地址而触发缺页异常
+        sprint("this address is not available!\n");
+        shutdown(-1);
+      }
       break;
     default:
       sprint("unknown page fault.\n");
