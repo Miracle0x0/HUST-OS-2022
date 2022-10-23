@@ -201,6 +201,10 @@ int do_fork(process *parent) {
           map_pages(child->pagetable, parent->mapped_info[i].va + j * PGSIZE, PGSIZE, pa_of_mapped_va, prot_to_type(PROT_READ | PROT_EXEC, 1));// * 权限为可读、可执行
         }
 
+        // # Challenge (lab3_challenge1)
+        // * 输出提示语句
+        sprint("do_fork map code segment at pa:%p of parent to child at va:%p.\n", lookup_pa(parent->pagetable, parent->mapped_info[i].va), parent->mapped_info[i].va);
+
         // after mapping, register the vm region (do not delete codes below!)
         child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
         child->mapped_info[child->total_mapped_region].npages =
