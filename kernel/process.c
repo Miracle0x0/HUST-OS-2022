@@ -208,6 +208,20 @@ int do_fork(process *parent) {
         child->mapped_info[child->total_mapped_region].seg_type = CODE_SEGMENT;
         child->total_mapped_region++;
         break;
+      // # Challenge (lab3_challenge1)
+      case DATA_SEGMENT:
+        for (int j = 0; j < parent->mapped_info[i].npages; j++) {
+          uint64 pa_of_mapped_va = lookup_pa(parent->pagetable, parent->mapped_info[i].va + j * PGSIZE);
+          void *new_addr = alloc_page();
+          memcpy(new_addr, (void *) pa_of_mapped_va, PGSIZE);
+          map_pages(child->pagetable, parent->mapped_info[i].va + j * PGSIZE, PGSIZE, (uint64) new_addr, prot_to_type(PROT_READ | PROT_WRITE, 1));// * 权限为可读、可写
+        }
+
+        child->mapped_info[child->total_mapped_region].va = parent->mapped_info[i].va;
+        child->mapped_info[child->total_mapped_region].npages = parent->mapped_info[i].npages;
+        child->mapped_info[child->total_mapped_region].seg_type = DATA_SEGMENT;
+        child->total_mapped_region++;
+        break;
     }
   }
 
@@ -217,4 +231,36 @@ int do_fork(process *parent) {
   insert_to_ready_queue(child);
 
   return child->pid;
+}
+
+// # Challenge (lab3_challenge_1)
+// * 返回值大于 0，表示等待结束，返回等待的子进程 pid
+// * 返回值为 -2，表示等待的子进程存在但未结束
+// * 返回值为 -1，表示等待的子进程不存在
+int wait(int pid) {
+  if (pid == -1) {
+    int flag = 0;
+    for (int i = 0; i < NPROC; i++) {
+      if (procs[i].parent == current) {
+        flag = 1;
+        if (procs[i].status == ZOMBIE) {// * 有一个子进程退出了
+          procs[i].status = FREE;
+          return i;
+        }
+      }
+    }
+    if (flag == 1) {
+      return -2;
+    }
+    return -1;
+  } else if (pid > 0 && pid < NPROC) {
+    if (procs[pid].parent == current) {
+      if (procs[pid].status == ZOMBIE) {
+        procs[pid].status = FREE;
+        return pid;
+      }
+      return -2;
+    }
+  }
+  return -1;
 }

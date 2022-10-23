@@ -69,7 +69,7 @@ ssize_t sys_user_fork() {
 }
 
 //
-// kerenl entry point of yield. added @lab3_2
+// kernel entry point of yield. added @lab3_2
 //
 ssize_t sys_user_yield() {
   // TODO (lab3_2): implment the syscall of yield.
@@ -84,6 +84,14 @@ ssize_t sys_user_yield() {
   schedule();                    // * 转进程调度执行
 
   return 0;
+}
+
+// # Challenge (lab3_challenge1)
+//
+// kernel entry point of wait. added @lab3_challenge1
+//
+ssize_t sys_user_wait(int pid) {
+  return wait(pid);
 }
 
 //
@@ -105,6 +113,9 @@ long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, l
       return sys_user_fork();
     case SYS_user_yield:
       return sys_user_yield();
+    // # Challenge (lab3_challenge1)
+    case SYS_user_wait:
+      return sys_user_wait(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }
