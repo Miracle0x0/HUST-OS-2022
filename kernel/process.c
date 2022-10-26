@@ -157,6 +157,13 @@ int free_process(process *proc) {
   // as it is different from regular OS, which needs to run 7x24.
   proc->status = ZOMBIE;
 
+  // # Challenge (lab3_challenge1)
+  // * 如果父进程存在且被阻塞，则将父进程“唤醒”加入就绪队列
+  if (proc->parent != NULL && proc->parent->status == BLOCKED) {
+    proc->parent->status = READY;
+    insert_to_ready_queue(proc->parent);
+  }
+
   return 0;
 }
 
@@ -213,6 +220,7 @@ int do_fork(process *parent) {
         child->total_mapped_region++;
         break;
       // # Challenge (lab3_challenge1)
+      // # 数据段的映射
       case DATA_SEGMENT:
         for (int j = 0; j < parent->mapped_info[i].npages; j++) {
           uint64 pa_of_mapped_va = lookup_pa(parent->pagetable, parent->mapped_info[i].va + j * PGSIZE);
@@ -235,36 +243,4 @@ int do_fork(process *parent) {
   insert_to_ready_queue(child);
 
   return child->pid;
-}
-
-// # Challenge (lab3_challenge_1)
-// * 返回值大于 0，表示等待结束，返回等待的子进程 pid
-// * 返回值为 -2，表示等待的子进程存在但未结束
-// * 返回值为 -1，表示等待的子进程不存在
-int wait(int pid) {
-  if (pid == -1) {
-    int flag = 0;
-    for (int i = 0; i < NPROC; i++) {
-      if (procs[i].parent == current) {
-        flag = 1;
-        if (procs[i].status == ZOMBIE) {// * 有一个子进程退出了
-          procs[i].status = FREE;
-          return i;
-        }
-      }
-    }
-    if (flag == 1) {
-      return -2;
-    }
-    return -1;
-  } else if (pid > 0 && pid < NPROC) {
-    if (procs[pid].parent == current) {
-      if (procs[pid].status == ZOMBIE) {
-        procs[pid].status = FREE;
-        return pid;
-      }
-      return -2;
-    }
-  }
-  return -1;
 }
