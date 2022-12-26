@@ -4,28 +4,31 @@
  */
 
 #include "elf.h"
-#include "string.h"
 #include "riscv.h"
 #include "spike_interface/spike_utils.h"
+#include "string.h"
 
 typedef struct elf_info_t {
   spike_file_t *f;
   process *p;
 } elf_info;
 
+// $ added @lab1_challenge1
+elf_ctx g_elfloader;
+
 //
 // the implementation of allocater. allocates memory space for later segment loading
 //
 static void *elf_alloc_mb(elf_ctx *ctx, uint64 elf_pa, uint64 elf_va, uint64 size) {
   // directly returns the virtual address as we are in the Bare mode in lab1_x
-  return (void *)elf_va;
+  return (void *) elf_va;
 }
 
 //
 // actual file reading, using the spike file interface.
 //
 static uint64 elf_fpread(elf_ctx *ctx, void *dest, uint64 nb, uint64 offset) {
-  elf_info *msg = (elf_info *)ctx->info;
+  elf_info *msg = (elf_info *) ctx->info;
   // call spike file utility to load the content of elf file into memory.
   // spike_file_pread will read the elf file (msg->f) from offset to memory (indicated by
   // *dest) for nb bytes.
@@ -58,7 +61,7 @@ elf_status elf_load(elf_ctx *ctx) {
   // traverse the elf program segment headers
   for (i = 0, off = ctx->ehdr.phoff; i < ctx->ehdr.phnum; i++, off += sizeof(ph_addr)) {
     // read segment headers
-    if (elf_fpread(ctx, (void *)&ph_addr, sizeof(ph_addr), off) != sizeof(ph_addr)) return EL_EIO;
+    if (elf_fpread(ctx, (void *) &ph_addr, sizeof(ph_addr), off) != sizeof(ph_addr)) return EL_EIO;
 
     if (ph_addr.type != ELF_PROG_LOAD) continue;
     if (ph_addr.memsz < ph_addr.filesz) return EL_ERR;
@@ -86,16 +89,16 @@ typedef union {
 //
 static size_t parse_args(arg_buf *arg_bug_msg) {
   // HTIFSYS_getmainvars frontend call reads command arguments to (input) *arg_bug_msg
-  long r = frontend_syscall(HTIFSYS_getmainvars, (uint64)arg_bug_msg,
-      sizeof(*arg_bug_msg), 0, 0, 0, 0, 0);
+  long r = frontend_syscall(HTIFSYS_getmainvars, (uint64) arg_bug_msg,
+                            sizeof(*arg_bug_msg), 0, 0, 0, 0, 0);
   kassert(r == 0);
 
   size_t pk_argc = arg_bug_msg->buf[0];
   uint64 *pk_argv = &arg_bug_msg->buf[1];
 
-  int arg = 1;  // skip the PKE OS kernel string, leave behind only the application name
+  int arg = 1;// skip the PKE OS kernel string, leave behind only the application name
   for (size_t i = 0; arg + i < pk_argc; i++)
-    arg_bug_msg->argv[i] = (char *)(uintptr_t)pk_argv[arg + i];
+    arg_bug_msg->argv[i] = (char *) (uintptr_t) pk_argv[arg + i];
 
   //returns the number of strings after PKE kernel in command line
   return pk_argc - arg;
@@ -114,7 +117,8 @@ void load_bincode_from_host_elf(process *p) {
   sprint("Application: %s\n", arg_bug_msg.argv[0]);
 
   //elf loading. elf_ctx is defined in kernel/elf.h, used to track the loading process.
-  elf_ctx elfloader;
+  // $ changed @lab1_challenge1
+  // elf_ctx elfloader;
   // elf_info is defined above, used to tie the elf file and its corresponding process.
   elf_info info;
 
@@ -124,17 +128,62 @@ void load_bincode_from_host_elf(process *p) {
   if (IS_ERR_VALUE(info.f)) panic("Fail on openning the input application program.\n");
 
   // init elfloader context. elf_init() is defined above.
-  if (elf_init(&elfloader, &info) != EL_OK)
-    panic("fail to init elfloader.\n");
+  // if (elf_init(&elfloader, &info) != EL_OK)
+  //   panic("fail to init elfloader.\n");
+  // $ changed @lab1_challenge1
+  if (elf_init(&g_elfloader, &info) != EL_OK)
+    panic("fail to init g_elfloader.\n");
 
   // load elf. elf_load() is defined above.
-  if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
+  // if (elf_load(&elfloader) != EL_OK) panic("Fail on loading elf.\n");
+  // $ changed @lab1_challenge1
+  if (elf_load(&g_elfloader) != EL_OK) panic("Fail on loading elf.\n");
 
   // entry (virtual, also physical in lab1_x) address
-  p->trapframe->epc = elfloader.ehdr.entry;
+  // p->trapframe->epc = elfloader.ehdr.entry;
+  // $ changed @lab1_challenge1
+  p->trapframe->epc = g_elfloader.ehdr.entry;
+
+  // $ added @lab1_challenge1
+  if (load_elf_symbol(&g_elfloader) != EL_OK) panic("Fail to load elf symbols.\n");
+  // int tmp = load_elf_symbol(&g_elfloader);
+  // sprint("tmp: %d\n", tmp);
+
+  // ? test
+  // for (int i = 0; i < g_elfloader.symbol_cnt; i++) {
+  //   if (g_elfloader.symbols[i].st_name == 0) continue;
+  //   uint32 tmp = g_elfloader.symbols[i].st_name;
+  //   sprint("%d\n", tmp);
+  //   sprint("%x\t%d\t%s\n", g_elfloader.symbols[i].st_value, g_elfloader.symbols[i].st_size, &g_elfloader.str_table[g_elfloader.symbols[i].st_name]);
+  // }
 
   // close the host spike file
-  spike_file_close( info.f );
+  spike_file_close(info.f);
 
   sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
+}
+
+// $ added @lab1_challenge1
+
+// 加载 .symtab 和 .strtab 节
+elf_status load_elf_symbol(elf_ctx *ctx) {
+  elf_section_header sh;
+  int str_size = 0;
+  // 加载 symbol table 和 string table
+  for (int i = 0, offset = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, offset += ELF_SECTION_HEADER_SZ) {
+    if (elf_fpread(ctx, (void *) &sh, sizeof(sh), offset) != sizeof(sh))
+      return EL_EIO;
+    if (sh.sh_type == SHT_SYMTAB) {// * symbol table
+      //线性结构
+      if (elf_fpread(ctx, &ctx->symbols, sh.sh_size, sh.sh_offset) != sh.sh_size)
+        return EL_EIO;
+      ctx->symbol_cnt = sh.sh_size / ELF_SYMBOL_SZ;
+    } else if (sh.sh_type == SHT_STRTAB) {// * string table
+      if (elf_fpread(ctx, &ctx->str_table + str_size, sh.sh_size, sh.sh_offset) != sh.sh_size)
+        return EL_EIO;
+      // * 可能存在多个 string table
+      str_size += sh.sh_size;
+    }
+  }
+  return EL_OK;
 }

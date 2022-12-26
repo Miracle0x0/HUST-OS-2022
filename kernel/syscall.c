@@ -2,21 +2,26 @@
  * contains the implementation of all syscalls.
  */
 
-#include <stdint.h>
 #include <errno.h>
+#include <stdint.h>
 
-#include "util/types.h"
-#include "syscall.h"
-#include "string.h"
+#include "elf.h"
 #include "process.h"
+#include "string.h"
+#include "syscall.h"
 #include "util/functions.h"
+#include "util/types.h"
 
 #include "spike_interface/spike_utils.h"
+
+// $ added @lab1_challenge1
+
+extern elf_ctx g_elfloader;
 
 //
 // implement the SYS_user_print syscall
 //
-ssize_t sys_user_print(const char* buf, size_t n) {
+ssize_t sys_user_print(const char *buf, size_t n) {
   sprint(buf);
   return 0;
 }
@@ -26,9 +31,40 @@ ssize_t sys_user_print(const char* buf, size_t n) {
 //
 ssize_t sys_user_exit(uint64 code) {
   sprint("User exit with code:%d.\n", code);
-  // in lab1, PKE considers only one app (one process). 
+  // in lab1, PKE considers only one app (one process).
   // therefore, shutdown the system when the app calls exit()
   shutdown(code);
+}
+
+// $ added @lab1_challenge1
+// 获取用户态栈
+ssize_t sys_user_showbacktrace(int64 depth) {
+  uint64 user_sp = current->trapframe->regs.sp + 16 + 8;
+  int64 cur_depth = 0;
+  for (uint64 cur_p = user_sp; cur_depth < depth; cur_p += 16) {
+    uint64 ra = *(uint64 *) cur_p;
+    if (ra == 0) break;// * 到达用户栈底
+    // * 追踪符号
+    uint64 tmp = 0;
+    int symbol_idx = -1;
+    // sprint("ra: %x\n", ra);
+    for (int i = 0; i < g_elfloader.symbol_cnt; i++) {
+      if (g_elfloader.symbols[i].st_info == STT_FUNC && g_elfloader.symbols[i].st_value < ra && g_elfloader.symbols[i].st_value > tmp) {
+        tmp = g_elfloader.symbols[i].st_value;
+        symbol_idx = i;
+      }
+    }
+    if (symbol_idx != -1) {
+      if (g_elfloader.symbols[symbol_idx].st_value >= 0x81000000 && g_elfloader.symbols[symbol_idx].st_value <= 0x81000000 + 2 + 20 * (depth - 1))
+        sprint("%s\n", &g_elfloader.str_table[g_elfloader.symbols[symbol_idx].st_name]);
+      else
+        continue;
+    } else {
+      sprint("failed to backtrace symbol %lx\n", ra);
+    }
+    cur_depth++;
+  }
+  return 0;
 }
 
 //
@@ -38,9 +74,13 @@ ssize_t sys_user_exit(uint64 code) {
 long do_syscall(long a0, long a1, long a2, long a3, long a4, long a5, long a6, long a7) {
   switch (a0) {
     case SYS_user_print:
-      return sys_user_print((const char*)a1, a2);
+      return sys_user_print((const char *) a1, a2);
     case SYS_user_exit:
       return sys_user_exit(a1);
+    // $ added @lab1_challenge1
+    // 添加 SYS_user_backtrace 系统调用的实现
+    case SYS_user_showbacktrace:
+      return sys_user_showbacktrace(a1);
     default:
       panic("Unknown syscall %ld \n", a0);
   }
