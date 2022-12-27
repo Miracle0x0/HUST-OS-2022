@@ -51,6 +51,14 @@ void handle_mtimer_trap() {
 }
 
 //
+// 判断缺页异常类型，用户栈缺页返回 true，否则返回 false.
+// added @lab2_challenge1
+//
+bool page_fault_type(uint64 stval) {
+  return stval >= USER_STACK_TOP - 20 * PGSIZE && stval < USER_STACK_TOP;
+}
+
+//
 // the page fault handler. added @lab2_3. parameters:
 // sepc: the pc when fault happens;
 // stval: the virtual address that causes pagefault when being accessed.
@@ -67,7 +75,8 @@ void handle_user_page_fault(uint64 mcause, uint64 sepc, uint64 stval) {
 
       // # CHALLENGE (lab2_challenge1)
       // ? 判断触发缺页异常的地址类型
-      if (stval >= USER_STACK_TOP - 20 * PGSIZE && stval < USER_STACK_TOP) {
+      if (page_fault_type(stval)) {
+        // $ SOLUTION
         // ? 合法的逻辑地址，引发缺页异常的是用户栈缺页
         // * 分配一个物理页，将其映射到 stval 所对应的虚拟地址上
         user_vm_map((pagetable_t) current->pagetable, stval - stval % PGSIZE, PGSIZE, (uint64) alloc_page(), prot_to_type(PROT_WRITE | PROT_READ, 1));
