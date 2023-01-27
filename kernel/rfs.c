@@ -25,8 +25,8 @@ const struct vinode_ops rfs_i_ops = {
         .viop_create = rfs_create,
         .viop_lseek = rfs_lseek,
         .viop_disk_stat = rfs_disk_stat,
-    .viop_link = rfs_link,
-    .viop_unlink = rfs_unlink,
+        .viop_link = rfs_link,
+        .viop_unlink = rfs_unlink,
         .viop_lookup = rfs_lookup,
 
         .viop_readdir = rfs_readdir,
@@ -584,19 +584,25 @@ int rfs_disk_stat(struct vinode *vinode, struct istat *istat) {
 int rfs_link(struct vinode *parent, struct dentry *sub_dentry, struct vinode *link_node) {
   // TODO (lab4_3): we now need to establish a hard link to an existing file whose vfs
   // inode is "link_node". To do that, we need first to know the name of the new (link)
-  // file, and then, we need to increase the link count of the existing file. Lastly, 
+  // file, and then, we need to increase the link count of the existing file. Lastly,
   // we need to make the changes persistent to disk. To know the name of the new (link)
   // file, you need to stuty the structure of dentry, that contains the name member;
-  // To incease the link count of the existing file, you need to study the structure of
+  // To increase the link count of the existing file, you need to study the structure of
   // vfs inode, since it contains the inode information of the existing file.
   //
   // hint: to accomplish this experiment, you need to:
   // 1) increase the link count of the file to be hard-linked;
-  // 2) append the new (link) file as a dentry to its parent directory; you can use 
+  // 2) append the new (link) file as a dentry to its parent directory; you can use
   //    rfs_add_direntry here.
   // 3) persistent the changes to disk. you can use rfs_write_back_vinode here.
   //
-  panic("You need to implement the code for creating a hard link in lab4_3.\n" );
+  // panic("You need to implement the code for creating a hard link in lab4_3.\n" );
+  // $ SOLUTION
+  struct rfs_device *rdev = rfs_device_list[parent->sb->s_dev->dev_id];
+  link_node->nlinks++;
+  rfs_add_direntry(parent, sub_dentry->name, link_node->inum);
+  rfs_write_back_vinode(link_node);
+  return 0;
 }
 
 //
@@ -615,9 +621,9 @@ int rfs_unlink(struct vinode *parent, struct dentry *sub_dentry, struct vinode *
     // read in the disk block at boundary
     if (delete_index % one_block_direntrys == 0) {
       rfs_r1block(rdev, parent->addrs[delete_index / one_block_direntrys]);
-      p_direntry = (struct rfs_direntry *)rdev->iobuffer;
+      p_direntry = (struct rfs_direntry *) rdev->iobuffer;
     }
-    if (strcmp(p_direntry->name, sub_dentry->name) == 0) {  // found
+    if (strcmp(p_direntry->name, sub_dentry->name) == 0) {// found
       break;
     }
     ++p_direntry;
@@ -667,15 +673,15 @@ int rfs_unlink(struct vinode *parent, struct dentry *sub_dentry, struct vinode *
           rdev->iobuffer + (offset + 1) * sizeof(struct rfs_direntry),
           (one_block_direntrys - offset - 1) * sizeof(struct rfs_direntry));
 
-  struct rfs_direntry *previous_block = (struct rfs_direntry *)alloc_page();
+  struct rfs_direntry *previous_block = (struct rfs_direntry *) alloc_page();
   memcpy(previous_block, rdev->iobuffer, RFS_BLKSIZE);
 
   for (int i = delete_block_index + 1; i < parent->blocks; i++) {
     rfs_r1block(rdev, parent->addrs[i]);
-    struct rfs_direntry *this_block = (struct rfs_direntry *)alloc_page();
+    struct rfs_direntry *this_block = (struct rfs_direntry *) alloc_page();
     memcpy(this_block, rdev->iobuffer, RFS_BLKSIZE);
 
-    // copy the first direntry of this block to the last direntry 
+    // copy the first direntry of this block to the last direntry
     // of previous block
     memcpy(previous_block + one_block_direntrys - 1, rdev->iobuffer,
            sizeof(struct rfs_direntry));
