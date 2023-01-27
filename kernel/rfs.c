@@ -27,13 +27,13 @@ const struct vinode_ops rfs_i_ops = {
         .viop_disk_stat = rfs_disk_stat,
         .viop_lookup = rfs_lookup,
 
-    .viop_readdir = rfs_readdir,
-    .viop_mkdir = rfs_mkdir,
+        .viop_readdir = rfs_readdir,
+        .viop_mkdir = rfs_mkdir,
 
-    .viop_write_back_vinode = rfs_write_back_vinode,
+        .viop_write_back_vinode = rfs_write_back_vinode,
 
-    .viop_hook_opendir = rfs_hook_opendir,
-    .viop_hook_closedir = rfs_hook_closedir,
+        .viop_hook_opendir = rfs_hook_opendir,
+        .viop_hook_closedir = rfs_hook_closedir,
 };
 
 /**** rfs utility functions ****/
@@ -599,9 +599,9 @@ int rfs_hook_opendir(struct vinode *dir_vinode, struct dentry *dentry) {
   }
 
   // save the pointer to the directory block in the vinode
-  struct rfs_dir_cache *dir_cache = (struct rfs_dir_cache *)alloc_page();
+  struct rfs_dir_cache *dir_cache = (struct rfs_dir_cache *) alloc_page();
   dir_cache->block_count = dir_vinode->blocks;
-  dir_cache->dir_base_addr = (struct rfs_direntry *)pdire;
+  dir_cache->dir_base_addr = (struct rfs_direntry *) pdire;
 
   dir_vinode->i_fs_info = dir_cache;
 
@@ -614,11 +614,11 @@ int rfs_hook_opendir(struct vinode *dir_vinode, struct dentry *dentry) {
 //
 int rfs_hook_closedir(struct vinode *dir_vinode, struct dentry *dentry) {
   struct rfs_dir_cache *dir_cache =
-      (struct rfs_dir_cache *)dir_vinode->i_fs_info;
+          (struct rfs_dir_cache *) dir_vinode->i_fs_info;
 
   // reclaim the dir cache
   for (int i = 0; i < dir_cache->block_count; ++i) {
-    free_page((char *)dir_cache->dir_base_addr + i * RFS_BLKSIZE);
+    free_page((char *) dir_cache->dir_base_addr + i * RFS_BLKSIZE);
   }
   return 0;
 }
@@ -641,7 +641,7 @@ int rfs_readdir(struct vinode *dir_vinode, struct dir *dir, int *offset) {
 
   // reads a directory entry from the directory cache stored in vfs inode.
   struct rfs_dir_cache *dir_cache =
-      (struct rfs_dir_cache *)dir_vinode->i_fs_info;
+          (struct rfs_dir_cache *) dir_vinode->i_fs_info;
   struct rfs_direntry *p_direntry = dir_cache->dir_base_addr + direntry_index;
 
   // TODO (lab4_2): implement the code to read a directory entry.
@@ -651,7 +651,12 @@ int rfs_readdir(struct vinode *dir_vinode, struct dir *dir, int *offset) {
   // the method of returning is to popular proper members of "dir", more specifically,
   // dir->name and dir->inum.
   // note: DO NOT DELETE CODE BELOW PANIC.
-  panic("You need to implement the code for reading a directory entry of rfs in lab4_2.\n" );
+  // panic("You need to implement the code for reading a directory entry of rfs in lab4_2.\n");
+  // $ SOLUTION
+  // * set dir->name
+  strcpy(dir->name, p_direntry->name);
+  // * set dir->inum
+  dir->inum = p_direntry->inum;
 
   // DO NOT DELETE CODE BELOW.
   (*offset)++;
@@ -670,7 +675,7 @@ struct vinode *rfs_mkdir(struct vinode *parent, struct dentry *sub_dentry) {
   int free_inum = 0;
   for (int i = 0; i < (RFS_BLKSIZE / RFS_INODESIZE * RFS_MAX_INODE_BLKNUM); i++) {
     free_dinode = rfs_read_dinode(rdev, i);
-    if (free_dinode->type == R_FREE) {  // found
+    if (free_dinode->type == R_FREE) {// found
       free_inum = i;
       break;
     }
@@ -678,7 +683,7 @@ struct vinode *rfs_mkdir(struct vinode *parent, struct dentry *sub_dentry) {
   }
 
   if (free_dinode == NULL)
-    panic( "rfs_mkdir: no more free disk inode, we cannot create directory.\n" );
+    panic("rfs_mkdir: no more free disk inode, we cannot create directory.\n");
 
   // initialize the states of the file being created
   free_dinode->size = 0;
