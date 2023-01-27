@@ -76,3 +76,94 @@ int fork() {
 void yield() {
   do_user_call(SYS_user_yield, 0, 0, 0, 0, 0, 0, 0);
 }
+
+//
+// lib call to open
+//
+int open(const char *pathname, int flags) {
+  return do_user_call(SYS_user_open, (uint64)pathname, flags, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to read
+//
+int read_u(int fd, void * buf, uint64 count){
+  return do_user_call(SYS_user_read, fd, (uint64)buf, count, 0, 0, 0, 0);
+}
+
+//
+// lib call to write
+//
+int write_u(int fd, void *buf, uint64 count) {
+  return do_user_call(SYS_user_write, fd, (uint64)buf, count, 0, 0, 0, 0);
+}
+
+//
+// lib call to seek
+// 
+int lseek_u(int fd, int offset, int whence) {
+  return do_user_call(SYS_user_lseek, fd, offset, whence, 0, 0, 0, 0);
+}
+
+//
+// lib call to read file information
+//
+int stat_u(int fd, struct istat *istat) {
+  return do_user_call(SYS_user_stat, fd, (uint64)istat, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to read file information from disk
+//
+int disk_stat_u(int fd, struct istat *istat) {
+  return do_user_call(SYS_user_disk_stat, fd, (uint64)istat, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to open dir
+//
+int opendir_u(const char *dirname) {
+  return do_user_call(SYS_user_opendir, (uint64)dirname, 0, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to read dir
+//
+int readdir_u(int fd, struct dir *dir) {
+  return do_user_call(SYS_user_readdir, fd, (uint64)dir, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to make dir
+//
+int mkdir_u(const char *pathname) {
+  return do_user_call(SYS_user_mkdir, (uint64)pathname, 0, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to close dir
+//
+int closedir_u(int fd) {
+  return do_user_call(SYS_user_closedir, fd, 0, 0, 0, 0, 0, 0);
+} 
+
+//
+// lib call to link
+//
+int link_u(const char *fn1, const char *fn2){
+  return do_user_call(SYS_user_link, (uint64)fn1, (uint64)fn2, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to unlink
+//
+int unlink_u(const char *fn){
+  return do_user_call(SYS_user_unlink, (uint64)fn, 0, 0, 0, 0, 0, 0);
+}
+
+//
+// lib call to close
+//
+int close(int fd) {
+  return do_user_call(SYS_user_close, fd, 0, 0, 0, 0, 0, 0);
+}
