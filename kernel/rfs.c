@@ -20,22 +20,22 @@
 
 /**** vinode inteface ****/
 const struct vinode_ops rfs_i_ops = {
-    .viop_read = rfs_read,
-    .viop_write = rfs_write,
-    .viop_create = rfs_create,
-    .viop_lseek = rfs_lseek,
-    .viop_disk_stat = rfs_disk_stat,
+        .viop_read = rfs_read,
+        .viop_write = rfs_write,
+        .viop_create = rfs_create,
+        .viop_lseek = rfs_lseek,
+        .viop_disk_stat = rfs_disk_stat,
     .viop_link = rfs_link,
     .viop_unlink = rfs_unlink,
-    .viop_lookup = rfs_lookup,
+        .viop_lookup = rfs_lookup,
 
-    .viop_readdir = rfs_readdir,
-    .viop_mkdir = rfs_mkdir,
+        .viop_readdir = rfs_readdir,
+        .viop_mkdir = rfs_mkdir,
 
-    .viop_write_back_vinode = rfs_write_back_vinode,
+        .viop_write_back_vinode = rfs_write_back_vinode,
 
-    .viop_hook_opendir = rfs_hook_opendir,
-    .viop_hook_closedir = rfs_hook_closedir,
+        .viop_hook_opendir = rfs_hook_opendir,
+        .viop_hook_closedir = rfs_hook_closedir,
 };
 
 /**** rfs utility functions ****/
@@ -43,7 +43,7 @@ const struct vinode_ops rfs_i_ops = {
 // register rfs to the fs list supported by PKE.
 //
 int register_rfs() {
-  struct file_system_type *fs_type = (struct file_system_type *)alloc_page();
+  struct file_system_type *fs_type = (struct file_system_type *) alloc_page();
   fs_type->type_num = RFS_TYPE;
   fs_type->get_superblock = rfs_get_superblock;
 
@@ -64,28 +64,28 @@ int rfs_format_dev(struct device *dev) {
 
   // ** first, format the superblock
   // build a new superblock
-  struct super_block *super = (struct super_block *)rdev->iobuffer;
+  struct super_block *super = (struct super_block *) rdev->iobuffer;
   super->magic = RFS_MAGIC;
   super->size =
-      1 + RFS_MAX_INODE_BLKNUM + 1 + RFS_MAX_INODE_BLKNUM * RFS_DIRECT_BLKNUM;
+          1 + RFS_MAX_INODE_BLKNUM + 1 + RFS_MAX_INODE_BLKNUM * RFS_DIRECT_BLKNUM;
   // only direct index blocks
   super->nblocks = RFS_MAX_INODE_BLKNUM * RFS_DIRECT_BLKNUM;
   super->ninodes = RFS_BLKSIZE / RFS_INODESIZE * RFS_MAX_INODE_BLKNUM;
 
   // write the superblock to RAM Disk0
-  if (rfs_w1block(rdev, RFS_BLK_OFFSET_SUPER) != 0)  // write to device
+  if (rfs_w1block(rdev, RFS_BLK_OFFSET_SUPER) != 0)// write to device
     panic("RFS: failed to write superblock!\n");
 
   // ** second, set up the inodes and write them to RAM disk
   // build an empty inode disk block which has RFS_BLKSIZE/RFS_INODESIZE(=32)
   // disk inodes
-  struct rfs_dinode *p_dinode = (struct rfs_dinode *)rdev->iobuffer;
+  struct rfs_dinode *p_dinode = (struct rfs_dinode *) rdev->iobuffer;
   for (int i = 0; i < RFS_BLKSIZE / RFS_INODESIZE; ++i) {
     p_dinode->size = 0;
     p_dinode->type = R_FREE;
     p_dinode->nlinks = 0;
     p_dinode->blocks = 0;
-    p_dinode = (struct rfs_dinode *)((char *)p_dinode + RFS_INODESIZE);
+    p_dinode = (struct rfs_dinode *) ((char *) p_dinode + RFS_INODESIZE);
   }
 
   // write RFS_MAX_INODE_BLKNUM(=10) empty inode disk blocks to RAM Disk0
@@ -109,12 +109,12 @@ int rfs_format_dev(struct device *dev) {
   }
 
   // ** third, write freemap to disk
-  int *freemap = (int *)rdev->iobuffer;
+  int *freemap = (int *) rdev->iobuffer;
   memset(freemap, 0, RFS_BLKSIZE);
-  freemap[0] = 1;  // the first data block is used for root directory
+  freemap[0] = 1;// the first data block is used for root directory
 
   // write the bitmap to RAM Disk0
-  if (rfs_w1block(rdev, RFS_BLK_OFFSET_BITMAP) != 0) {  // write to device
+  if (rfs_w1block(rdev, RFS_BLK_OFFSET_BITMAP) != 0) {// write to device
     sprint("RFS: failed to write bitmap!\n");
     return -1;
   }
@@ -151,8 +151,8 @@ struct rfs_dinode *rfs_read_dinode(struct rfs_device *rdev, int n_inode) {
 
   // call ramdisk_read defined in dev.c
   if (dop_read(rdev, n_block) != 0) return NULL;
-  struct rfs_dinode *dinode = (struct rfs_dinode *)alloc_page();
-  memcpy(dinode, (char *)rdev->iobuffer + offset * RFS_INODESIZE,
+  struct rfs_dinode *dinode = (struct rfs_dinode *) alloc_page();
+  memcpy(dinode, (char *) rdev->iobuffer + offset * RFS_INODESIZE,
          sizeof(struct rfs_dinode));
   return dinode;
 }
@@ -183,9 +183,9 @@ int rfs_write_dinode(struct rfs_device *rdev, const struct rfs_dinode *dinode,
 int rfs_alloc_block(struct super_block *sb) {
   int free_block = -1;
   // think of s_fs_info as freemap information
-  int *freemap = (int *)sb->s_fs_info;
+  int *freemap = (int *) sb->s_fs_info;
   for (int block = 0; block < sb->nblocks; ++block) {
-    if (freemap[block] == 0) {  // find a free block
+    if (freemap[block] == 0) {// find a free block
       freemap[block] = 1;
       free_block = RFS_BLK_OFFSET_FREE + block;
       break;
@@ -199,7 +199,7 @@ int rfs_alloc_block(struct super_block *sb) {
 // free a block in RAM disk
 //
 int rfs_free_block(struct super_block *sb, int block_num) {
-  int *freemap = (int *)sb->s_fs_info;
+  int *freemap = (int *) sb->s_fs_info;
   freemap[block_num - RFS_BLK_OFFSET_FREE] = 0;
   return 0;
 }
@@ -221,8 +221,8 @@ int rfs_add_direntry(struct vinode *dir, const char *name, int inum) {
   }
 
   // prepare iobuffer
-  char *addr = (char *)rdev->iobuffer + dir->size % RFS_BLKSIZE;
-  struct rfs_direntry *p_direntry = (struct rfs_direntry *)addr;
+  char *addr = (char *) rdev->iobuffer + dir->size % RFS_BLKSIZE;
+  struct rfs_direntry *p_direntry = (struct rfs_direntry *) addr;
   p_direntry->inum = inum;
   strcpy(p_direntry->name, name);
 
@@ -395,7 +395,7 @@ ssize_t rfs_write(struct vinode *f_inode, const char *w_buf, ssize_t len,
   if (writetimes >= 0) {
     // write complete blocks
     while (writetimes != 0) {
-      if (block_offset == f_inode->blocks) {  // need to create new block
+      if (block_offset == f_inode->blocks) {// need to create new block
         // allocate a free block for the file
         f_inode->addrs[block_offset] = rfs_alloc_block(f_inode->sb);
         f_inode->blocks++;
@@ -422,7 +422,7 @@ ssize_t rfs_write(struct vinode *f_inode, const char *w_buf, ssize_t len,
 
   // update file size
   f_inode->size =
-      (f_inode->size < *offset + len ? *offset + len : f_inode->size);
+          (f_inode->size < *offset + len ? *offset + len : f_inode->size);
 
   *offset += len;
   return len;
@@ -445,11 +445,11 @@ struct vinode *rfs_lookup(struct vinode *parent, struct dentry *sub_dentry) {
 
   // browse the dir entries contained in a directory file
   for (int i = 0; i < total_direntrys; ++i) {
-    if (i % one_block_direntrys == 0) {  // read in the disk block at boundary
+    if (i % one_block_direntrys == 0) {// read in the disk block at boundary
       rfs_r1block(rdev, parent->addrs[i / one_block_direntrys]);
-      p_direntry = (struct rfs_direntry *)rdev->iobuffer;
+      p_direntry = (struct rfs_direntry *) rdev->iobuffer;
     }
-    if (strcmp(p_direntry->name, sub_dentry->name) == 0) {  // found
+    if (strcmp(p_direntry->name, sub_dentry->name) == 0) {// found
       child_vinode = rfs_alloc_vinode(parent->sb);
       child_vinode->inum = p_direntry->inum;
       if (rfs_update_vinode(child_vinode) != 0)
@@ -474,7 +474,7 @@ struct vinode *rfs_create(struct vinode *parent, struct dentry *sub_dentry) {
   for (int i = 0; i < (RFS_BLKSIZE / RFS_INODESIZE * RFS_MAX_INODE_BLKNUM);
        ++i) {
     free_dinode = rfs_read_dinode(rdev, i);
-    if (free_dinode->type == R_FREE) {  // found
+    if (free_dinode->type == R_FREE) {// found
       free_inum = i;
       break;
     }
@@ -482,11 +482,11 @@ struct vinode *rfs_create(struct vinode *parent, struct dentry *sub_dentry) {
   }
 
   if (free_dinode == NULL)
-    panic("rfs_create: no more free disk inode, we cannot create file.\n" );
+    panic("rfs_create: no more free disk inode, we cannot create file.\n");
 
   // initialize the states of the file being created
 
-  // TODO (lab4_1): implement the code for populating the disk inode (free_dinode) 
+  // TODO (lab4_1): implement the code for populating the disk inode (free_dinode)
   // of a new file being created.
   // hint:  members of free_dinode to be filled are:
   // size, should be zero for a new file.
@@ -494,7 +494,12 @@ struct vinode *rfs_create(struct vinode *parent, struct dentry *sub_dentry) {
   // nlinks, i.e., the number of links.
   // blocks, i.e., its block count.
   // Note: DO NOT DELETE CODE BELOW PANIC.
-  panic("You need to implement the code of populating a disk inode in lab4_1.\n" );
+  // panic("You need to implement the code of populating a disk inode in lab4_1.\n" );
+  // $ SOLUTION
+  free_dinode->size = 0;
+  free_dinode->type = RFS_TYPE;
+  free_dinode->nlinks = 1;
+  free_dinode->blocks = 0;
 
   // DO NOT REMOVE ANY CODE BELOW.
   // allocate a free block for the file
@@ -547,7 +552,7 @@ int rfs_lseek(struct vinode *f_inode, ssize_t new_offset, int whence, int *offse
       sprint("rfs_lseek: invalid whence!\n");
       return -1;
   }
-  
+
   return 0;
 }
 
@@ -563,7 +568,7 @@ int rfs_disk_stat(struct vinode *vinode, struct istat *istat) {
   }
 
   istat->st_inum = 1;
-  istat->st_inum = vinode->inum;  // get inode number from vinode
+  istat->st_inum = vinode->inum;// get inode number from vinode
 
   istat->st_size = dinode->size;
   istat->st_type = dinode->type;
@@ -735,9 +740,9 @@ int rfs_hook_opendir(struct vinode *dir_vinode, struct dentry *dentry) {
   }
 
   // save the pointer to the directory block in the vinode
-  struct rfs_dir_cache *dir_cache = (struct rfs_dir_cache *)alloc_page();
+  struct rfs_dir_cache *dir_cache = (struct rfs_dir_cache *) alloc_page();
   dir_cache->block_count = dir_vinode->blocks;
-  dir_cache->dir_base_addr = (struct rfs_direntry *)pdire;
+  dir_cache->dir_base_addr = (struct rfs_direntry *) pdire;
 
   dir_vinode->i_fs_info = dir_cache;
 
@@ -750,11 +755,11 @@ int rfs_hook_opendir(struct vinode *dir_vinode, struct dentry *dentry) {
 //
 int rfs_hook_closedir(struct vinode *dir_vinode, struct dentry *dentry) {
   struct rfs_dir_cache *dir_cache =
-      (struct rfs_dir_cache *)dir_vinode->i_fs_info;
+          (struct rfs_dir_cache *) dir_vinode->i_fs_info;
 
   // reclaim the dir cache
   for (int i = 0; i < dir_cache->block_count; ++i) {
-    free_page((char *)dir_cache->dir_base_addr + i * RFS_BLKSIZE);
+    free_page((char *) dir_cache->dir_base_addr + i * RFS_BLKSIZE);
   }
   return 0;
 }
@@ -777,7 +782,7 @@ int rfs_readdir(struct vinode *dir_vinode, struct dir *dir, int *offset) {
 
   // reads a directory entry from the directory cache stored in vfs inode.
   struct rfs_dir_cache *dir_cache =
-      (struct rfs_dir_cache *)dir_vinode->i_fs_info;
+          (struct rfs_dir_cache *) dir_vinode->i_fs_info;
   struct rfs_direntry *p_direntry = dir_cache->dir_base_addr + direntry_index;
 
   // TODO (lab4_2): implement the code to read a directory entry.
@@ -787,7 +792,12 @@ int rfs_readdir(struct vinode *dir_vinode, struct dir *dir, int *offset) {
   // the method of returning is to popular proper members of "dir", more specifically,
   // dir->name and dir->inum.
   // note: DO NOT DELETE CODE BELOW PANIC.
-  panic("You need to implement the code for reading a directory entry of rfs in lab4_2.\n" );
+  // panic("You need to implement the code for reading a directory entry of rfs in lab4_2.\n");
+  // $ SOLUTION
+  // * set dir->name
+  strcpy(dir->name, p_direntry->name);
+  // * set dir->inum
+  dir->inum = p_direntry->inum;
 
   // DO NOT DELETE CODE BELOW.
   (*offset)++;
@@ -806,7 +816,7 @@ struct vinode *rfs_mkdir(struct vinode *parent, struct dentry *sub_dentry) {
   int free_inum = 0;
   for (int i = 0; i < (RFS_BLKSIZE / RFS_INODESIZE * RFS_MAX_INODE_BLKNUM); i++) {
     free_dinode = rfs_read_dinode(rdev, i);
-    if (free_dinode->type == R_FREE) {  // found
+    if (free_dinode->type == R_FREE) {// found
       free_inum = i;
       break;
     }
@@ -814,7 +824,7 @@ struct vinode *rfs_mkdir(struct vinode *parent, struct dentry *sub_dentry) {
   }
 
   if (free_dinode == NULL)
-    panic( "rfs_mkdir: no more free disk inode, we cannot create directory.\n" );
+    panic("rfs_mkdir: no more free disk inode, we cannot create directory.\n");
 
   // initialize the states of the file being created
   free_dinode->size = 0;
@@ -862,7 +872,7 @@ struct super_block *rfs_get_superblock(struct device *dev) {
   sb->ninodes = d_sb.ninodes;
   sb->s_dev = dev;
 
-  if( sb->magic != RFS_MAGIC ) 
+  if (sb->magic != RFS_MAGIC)
     panic("rfs_get_superblock: wrong ramdisk device!\n");
 
   // build root dentry and root inode
