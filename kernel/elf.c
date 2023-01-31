@@ -4,9 +4,9 @@
  */
 
 #include "elf.h"
-#include "string.h"
 #include "riscv.h"
 #include "spike_interface/spike_utils.h"
+#include "string.h"
 
 typedef struct elf_info_t {
   spike_file_t *f;
@@ -18,14 +18,14 @@ typedef struct elf_info_t {
 //
 static void *elf_alloc_mb(elf_ctx *ctx, uint64 elf_pa, uint64 elf_va, uint64 size) {
   // directly returns the virtual address as we are in the Bare mode in lab1_x
-  return (void *)elf_va;
+  return (void *) elf_va;
 }
 
 //
 // actual file reading, using the spike file interface.
 //
 static uint64 elf_fpread(elf_ctx *ctx, void *dest, uint64 nb, uint64 offset) {
-  elf_info *msg = (elf_info *)ctx->info;
+  elf_info *msg = (elf_info *) ctx->info;
   // call spike file utility to load the content of elf file into memory.
   // spike_file_pread will read the elf file (msg->f) from offset to memory (indicated by
   // *dest) for nb bytes.
@@ -50,45 +50,54 @@ elf_status elf_init(elf_ctx *ctx, void *info) {
 // leb128 (little-endian base 128) is a variable-length
 // compression algoritm in DWARF
 void read_uleb128(uint64 *out, char **off) {
-    uint64 value = 0; int shift = 0; uint8 b;
-    for (;;) {
-        b = *(uint8 *)(*off); (*off)++;
-        value |= ((uint64)b & 0x7F) << shift;
-        shift += 7;
-        if ((b & 0x80) == 0) break;
-    }
-    if (out) *out = value;
+  uint64 value = 0;
+  int shift = 0;
+  uint8 b;
+  for (;;) {
+    b = *(uint8 *) (*off);
+    (*off)++;
+    value |= ((uint64) b & 0x7F) << shift;
+    shift += 7;
+    if ((b & 0x80) == 0) break;
+  }
+  if (out) *out = value;
 }
 void read_sleb128(int64 *out, char **off) {
-    int64 value = 0; int shift = 0; uint8 b;
-    for (;;) {
-        b = *(uint8 *)(*off); (*off)++;
-        value |= ((uint64_t)b & 0x7F) << shift;
-        shift += 7;
-        if ((b & 0x80) == 0) break;
-    }
-    if (shift < 64 && (b & 0x40)) value |= -(1 << shift);
-    if (out) *out = value;
+  int64 value = 0;
+  int shift = 0;
+  uint8 b;
+  for (;;) {
+    b = *(uint8 *) (*off);
+    (*off)++;
+    value |= ((uint64_t) b & 0x7F) << shift;
+    shift += 7;
+    if ((b & 0x80) == 0) break;
+  }
+  if (shift < 64 && (b & 0x40)) value |= -(1 << shift);
+  if (out) *out = value;
 }
 // Since reading below types through pointer cast requires aligned address,
 // so we can only read them byte by byte
 void read_uint64(uint64 *out, char **off) {
-    *out = 0;
-    for (int i = 0; i < 8; i++) {
-        *out |= (uint64)(**off) << (i << 3); (*off)++;
-    }
+  *out = 0;
+  for (int i = 0; i < 8; i++) {
+    *out |= (uint64) (**off) << (i << 3);
+    (*off)++;
+  }
 }
 void read_uint32(uint32 *out, char **off) {
-    *out = 0;
-    for (int i = 0; i < 4; i++) {
-        *out |= (uint32)(**off) << (i << 3); (*off)++;
-    }
+  *out = 0;
+  for (int i = 0; i < 4; i++) {
+    *out |= (uint32) (**off) << (i << 3);
+    (*off)++;
+  }
 }
 void read_uint16(uint16 *out, char **off) {
-    *out = 0;
-    for (int i = 0; i < 2; i++) {
-        *out |= (uint16)(**off) << (i << 3); (*off)++;
-    }
+  *out = 0;
+  for (int i = 0; i < 2; i++) {
+    *out |= (uint16) (**off) << (i << 3);
+    (*off)++;
+  }
 }
 
 /*
@@ -104,96 +113,130 @@ void read_uint16(uint16 *out, char **off) {
 * and their code file name index of array "file"
 */
 void make_addr_line(elf_ctx *ctx, char *debug_line, uint64 length) {
-   process *p = ((elf_info *)ctx->info)->p;
-    p->debugline = debug_line;
-    // directory name char pointer array
-    p->dir = (char **)((((uint64)debug_line + length + 7) >> 3) << 3); int dir_ind = 0, dir_base;
-    // file name char pointer array
-    p->file = (code_file *)(p->dir + 64); int file_ind = 0, file_base;
-    // table array
-    p->line = (addr_line *)(p->file + 64); p->line_ind = 0;
-    char *off = debug_line;
-    while (off < debug_line + length) { // iterate each compilation unit(CU)
-        debug_header *dh = (debug_header *)off; off += sizeof(debug_header);
-        dir_base = dir_ind; file_base = file_ind;
-        // get directory name char pointer in this CU
-        while (*off != 0) {
-            p->dir[dir_ind++] = off; while (*off != 0) off++; off++;
-        }
-        off++;
-        // get file name char pointer in this CU
-        while (*off != 0) {
-            p->file[file_ind].file = off; while (*off != 0) off++; off++;
-            uint64 dir; read_uleb128(&dir, &off);
-            p->file[file_ind++].dir = dir - 1 + dir_base;
-            read_uleb128(NULL, &off); read_uleb128(NULL, &off);
-        }
-        off++; addr_line regs; regs.addr = 0; regs.file = 1; regs.line = 1;
-        // simulate the state machine op code
-        for (;;) {
-            uint8 op = *(off++);
-            switch (op) {
-                case 0: // Extended Opcodes
-                    read_uleb128(NULL, &off); op = *(off++);
-                    switch (op) {
-                        case 1: // DW_LNE_end_sequence
-                            if (p->line_ind > 0 && p->line[p->line_ind - 1].addr == regs.addr) p->line_ind--;
-                            p->line[p->line_ind] = regs; p->line[p->line_ind].file += file_base - 1;
-                            p->line_ind++; goto endop;
-                        case 2: // DW_LNE_set_address
-                            read_uint64(&regs.addr, &off); break;
-                        // ignore DW_LNE_define_file
-                        case 4: // DW_LNE_set_discriminator
-                            read_uleb128(NULL, &off); break;
-                    }
-                    break;
-                case 1: // DW_LNS_copy
-                    if (p->line_ind > 0 && p->line[p->line_ind - 1].addr == regs.addr) p->line_ind--;
-                    p->line[p->line_ind] = regs; p->line[p->line_ind].file += file_base - 1;
-                    p->line_ind++; break;
-                case 2: { // DW_LNS_advance_pc
-                            uint64 delta; read_uleb128(&delta, &off);
-                            regs.addr += delta * dh->min_instruction_length;
-                            break;
-                        }
-                case 3: { // DW_LNS_advance_line
-                            int64 delta; read_sleb128(&delta, &off);
-                            regs.line += delta; break; } case 4: // DW_LNS_set_file
-                        read_uleb128(&regs.file, &off); break;
-                case 5: // DW_LNS_set_column
-                        read_uleb128(NULL, &off); break;
-                case 6: // DW_LNS_negate_stmt
-                case 7: // DW_LNS_set_basic_block
-                        break;
-                case 8: { // DW_LNS_const_add_pc
-                            int adjust = 255 - dh->opcode_base;
-                            int delta = (adjust / dh->line_range) * dh->min_instruction_length;
-                            regs.addr += delta; break;
-                        }
-                case 9: { // DW_LNS_fixed_advanced_pc
-                            uint16 delta; read_uint16(&delta, &off);
-                            regs.addr += delta;
-                            break;
-                        }
-                        // ignore 10, 11 and 12
-                default: { // Special Opcodes
-                             int adjust = op - dh->opcode_base;
-                             int addr_delta = (adjust / dh->line_range) * dh->min_instruction_length;
-                             int line_delta = dh->line_base + (adjust % dh->line_range);
-                             regs.addr += addr_delta;
-                             regs.line += line_delta;
-                             if (p->line_ind > 0 && p->line[p->line_ind - 1].addr == regs.addr) p->line_ind--;
-                             p->line[p->line_ind] = regs; p->line[p->line_ind].file += file_base - 1;
-                             p->line_ind++; break;
-                         }
-            }
-        }
-endop:;
+  process *p = ((elf_info *) ctx->info)->p;
+  p->debugline = debug_line;
+  // directory name char pointer array
+  p->dir = (char **) ((((uint64) debug_line + length + 7) >> 3) << 3);
+  int dir_ind = 0, dir_base;
+  // file name char pointer array
+  p->file = (code_file *) (p->dir + 64);
+  int file_ind = 0, file_base;
+  // table array
+  p->line = (addr_line *) (p->file + 64);
+  p->line_ind = 0;
+  char *off = debug_line;
+  while (off < debug_line + length) {// iterate each compilation unit(CU)
+    debug_header *dh = (debug_header *) off;
+    off += sizeof(debug_header);
+    dir_base = dir_ind;
+    file_base = file_ind;
+    // get directory name char pointer in this CU
+    while (*off != 0) {
+      p->dir[dir_ind++] = off;
+      while (*off != 0) off++;
+      off++;
     }
-    // for (int i = 0; i < p->line_ind; i++)
-    //     sprint("%p %d %d\n", p->line[i].addr, p->line[i].line, p->line[i].file);
+    off++;
+    // get file name char pointer in this CU
+    while (*off != 0) {
+      p->file[file_ind].file = off;
+      while (*off != 0) off++;
+      off++;
+      uint64 dir;
+      read_uleb128(&dir, &off);
+      p->file[file_ind++].dir = dir - 1 + dir_base;
+      read_uleb128(NULL, &off);
+      read_uleb128(NULL, &off);
+    }
+    off++;
+    addr_line regs;
+    regs.addr = 0;
+    regs.file = 1;
+    regs.line = 1;
+    // simulate the state machine op code
+    for (;;) {
+      uint8 op = *(off++);
+      switch (op) {
+        case 0:// Extended Opcodes
+          read_uleb128(NULL, &off);
+          op = *(off++);
+          switch (op) {
+            case 1:// DW_LNE_end_sequence
+              if (p->line_ind > 0 && p->line[p->line_ind - 1].addr == regs.addr) p->line_ind--;
+              p->line[p->line_ind] = regs;
+              p->line[p->line_ind].file += file_base - 1;
+              p->line_ind++;
+              goto endop;
+            case 2:// DW_LNE_set_address
+              read_uint64(&regs.addr, &off);
+              break;
+            // ignore DW_LNE_define_file
+            case 4:// DW_LNE_set_discriminator
+              read_uleb128(NULL, &off);
+              break;
+          }
+          break;
+        case 1:// DW_LNS_copy
+          if (p->line_ind > 0 && p->line[p->line_ind - 1].addr == regs.addr) p->line_ind--;
+          p->line[p->line_ind] = regs;
+          p->line[p->line_ind].file += file_base - 1;
+          p->line_ind++;
+          break;
+        case 2: {// DW_LNS_advance_pc
+          uint64 delta;
+          read_uleb128(&delta, &off);
+          regs.addr += delta * dh->min_instruction_length;
+          break;
+        }
+        case 3: {// DW_LNS_advance_line
+          int64 delta;
+          read_sleb128(&delta, &off);
+          regs.line += delta;
+          break;
+        }
+        case 4:// DW_LNS_set_file
+          read_uleb128(&regs.file, &off);
+          break;
+        case 5:// DW_LNS_set_column
+          read_uleb128(NULL, &off);
+          break;
+        case 6:// DW_LNS_negate_stmt
+        case 7:// DW_LNS_set_basic_block
+          break;
+        case 8: {// DW_LNS_const_add_pc
+          int adjust = 255 - dh->opcode_base;
+          int delta = (adjust / dh->line_range) * dh->min_instruction_length;
+          regs.addr += delta;
+          break;
+        }
+        case 9: {// DW_LNS_fixed_advanced_pc
+          uint16 delta;
+          read_uint16(&delta, &off);
+          regs.addr += delta;
+          break;
+        }
+          // ignore 10, 11 and 12
+        default: {// Special Opcodes
+          int adjust = op - dh->opcode_base;
+          int addr_delta = (adjust / dh->line_range) * dh->min_instruction_length;
+          int line_delta = dh->line_base + (adjust % dh->line_range);
+          regs.addr += addr_delta;
+          regs.line += line_delta;
+          if (p->line_ind > 0 && p->line[p->line_ind - 1].addr == regs.addr) p->line_ind--;
+          p->line[p->line_ind] = regs;
+          p->line[p->line_ind].file += file_base - 1;
+          p->line_ind++;
+          break;
+        }
+      }
+    }
+  endop:;
+  }
+  // for (int i = 0; i < p->line_ind; i++)
+  //     sprint("%p %d %d\n", p->line[i].addr, p->line[i].line, p->line[i].file);
 }
 
+// # modified @ lab1_challenge2
 //
 // load the elf segments to memory regions as we are in Bare mode in lab1
 //
@@ -202,10 +245,14 @@ elf_status elf_load(elf_ctx *ctx) {
   elf_prog_header ph_addr;
   int i, off;
 
+  // # added @ lab1_challenge1
+  // store the maximum virtual address of program sections
+  uint64 max_va = 0;
+
   // traverse the elf program segment headers
   for (i = 0, off = ctx->ehdr.phoff; i < ctx->ehdr.phnum; i++, off += sizeof(ph_addr)) {
     // read segment headers
-    if (elf_fpread(ctx, (void *)&ph_addr, sizeof(ph_addr), off) != sizeof(ph_addr)) return EL_EIO;
+    if (elf_fpread(ctx, (void *) &ph_addr, sizeof(ph_addr), off) != sizeof(ph_addr)) return EL_EIO;
 
     if (ph_addr.type != ELF_PROG_LOAD) continue;
     if (ph_addr.memsz < ph_addr.filesz) return EL_ERR;
@@ -217,6 +264,26 @@ elf_status elf_load(elf_ctx *ctx) {
     // actual loading
     if (elf_fpread(ctx, dest, ph_addr.memsz, ph_addr.off) != ph_addr.memsz)
       return EL_EIO;
+
+    // # added @ lab1_challenge2
+    // update max_va
+    if (ph_addr.vaddr + ph_addr.memsz > max_va) max_va = ph_addr.vaddr + ph_addr.memsz;
+  }
+
+  // # added @ lab1_challenge2
+  char segment_name[16];
+  ((elf_info *) ctx->info)->p->debugline = NULL;
+  elf_sect_header name_seg, tmp_seg;
+  // read name segment
+  if (elf_fpread(ctx, (void *) &name_seg, sizeof(name_seg), ctx->ehdr.shoff + ctx->ehdr.shstrndx * sizeof(name_seg)) != sizeof(name_seg)) return EL_EIO;
+  // find .debug_line segment and store it
+  for (i = 0, off = ctx->ehdr.shoff; i < ctx->ehdr.shnum; i++, off += sizeof(tmp_seg)) {
+    if (elf_fpread(ctx, (void *) &tmp_seg, sizeof(tmp_seg), off) != sizeof(tmp_seg)) return EL_EIO;
+    elf_fpread(ctx, (void *) segment_name, 20, name_seg.offset + tmp_seg.name);
+    if (strcmp(segment_name, ".debug_line") == 0) {
+      if (elf_fpread(ctx, (void *) max_va, tmp_seg.size, tmp_seg.offset) != tmp_seg.size) return EL_EIO;
+      make_addr_line(ctx, (char *) max_va, tmp_seg.size);
+    }
   }
 
   return EL_OK;
@@ -233,16 +300,16 @@ typedef union {
 //
 static size_t parse_args(arg_buf *arg_bug_msg) {
   // HTIFSYS_getmainvars frontend call reads command arguments to (input) *arg_bug_msg
-  long r = frontend_syscall(HTIFSYS_getmainvars, (uint64)arg_bug_msg,
-      sizeof(*arg_bug_msg), 0, 0, 0, 0, 0);
+  long r = frontend_syscall(HTIFSYS_getmainvars, (uint64) arg_bug_msg,
+                            sizeof(*arg_bug_msg), 0, 0, 0, 0, 0);
   kassert(r == 0);
 
   size_t pk_argc = arg_bug_msg->buf[0];
   uint64 *pk_argv = &arg_bug_msg->buf[1];
 
-  int arg = 1;  // skip the PKE OS kernel string, leave behind only the application name
+  int arg = 1;// skip the PKE OS kernel string, leave behind only the application name
   for (size_t i = 0; arg + i < pk_argc; i++)
-    arg_bug_msg->argv[i] = (char *)(uintptr_t)pk_argv[arg + i];
+    arg_bug_msg->argv[i] = (char *) (uintptr_t) pk_argv[arg + i];
 
   //returns the number of strings after PKE kernel in command line
   return pk_argc - arg;
@@ -281,7 +348,7 @@ void load_bincode_from_host_elf(process *p) {
   p->trapframe->epc = elfloader.ehdr.entry;
 
   // close the host spike file
-  spike_file_close( info.f );
+  spike_file_close(info.f);
 
   sprint("Application program entry point (virtual address): 0x%lx\n", p->trapframe->epc);
 }
