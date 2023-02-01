@@ -218,3 +218,50 @@ int do_fork(process *parent) {
 
   return child->pid;
 }
+
+// # added @ lab3_challenge2
+semaphore sems[NPROC];
+
+int alloc_sem(int val) {
+  for (int i = 0; i < NPROC; i++) {
+    if (sems[i].occupied) continue;
+    // 找到一个空闲的信号量
+    sems[i].occupied = 1;
+    sems[i].val = val;
+    sems[i].wl_head = sems[i].wl_tail = NULL;
+    return i;
+  }
+  // not found
+  return -1;
+}
+
+int inc_sem(int sem) {
+  if (sem < 0 || sem >= NPROC) return -1;
+  sems[sem].val++;
+  if (sems[sem].wl_head != NULL) {// 等待队列不为空，将队首进程放入就绪队列
+    process *t = sems[sem].wl_head;
+    sems[sem].wl_head = t->queue_next;
+    if (t->queue_next == NULL) sems[sem].wl_tail = NULL;
+    insert_to_ready_queue(t);
+  }
+  return 0;
+}
+
+int dec_sem(int sem) {
+  if (sem < 0 || sem >= NPROC) return -1;
+  sems[sem].val--;
+  // ? 信号量小于 0 时，将 current 加入等待队列
+  if (sems[sem].val < 0) {
+    if (sems[sem].wl_head != NULL) {// 等待队列不为空，将当前进程加入等待队列
+      sems[sem].wl_tail->queue_next = current->queue_next;
+      sems[sem].wl_tail = current;
+    } else {// 等待队列为空，还需要处理头指针
+      sems[sem].wl_head = sems[sem].wl_tail = current;
+      current->queue_next = NULL;
+    }
+    current->status = BLOCKED;
+    schedule();
+  }
+  // ? 信号量不小于 0，不作处理
+  return 0;
+}
