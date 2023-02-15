@@ -41,7 +41,7 @@ void line_show(addr_line *line) {
   error_path[len] = '/';
   strcpy(error_path + len + 1, current->file[line->file].file);
   // ! DEBUG
-  sprint("error path: %s\n", error_path);
+  // sprint("error path: %s\n", error_path);
 
   // * read and print code line
   spike_file_t *f = spike_file_open(error_path, O_RDONLY, 0);
