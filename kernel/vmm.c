@@ -10,6 +10,11 @@
 #include "util/functions.h"
 #include "util/string.h"
 #include "util/types.h"
+// # added @ lab2_challenge2
+#include "process.h"
+
+// # added @ lab2_challenge2
+int heap_init_flag = 0;// * 堆初始化标志
 
 /* --- utility functions for virtual address mapping --- */
 //
@@ -199,6 +204,74 @@ void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free) {
   pte_t *pte_containing_va = page_walk(page_dir, va, 0);
   if (pte_containing_va) {                          // * 找到 PTE
     free_page(user_va_to_pa(page_dir, (void *) va));// * 调用 lab2_1 中实现的函数计算 pa，回收 pa 对应的物理页
-    *pte_containing_va &= ~PTE_V;                   //* 将 PTE 中的 Valid 位置 0
+    *pte_containing_va &= ~PTE_V;                   // * 将 PTE 中的 Valid 位置 0
   }
+}
+
+// # added @ lab2_challenge2
+uint64 user_vm_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz) {
+  if (oldsz > newsz) return oldsz;
+  oldsz = PGROUNDUP(oldsz);
+  for (uint64 old = oldsz; old < newsz; old += PGSIZE) {
+    char *mem = (char *) alloc_page();
+    if (mem == NULL)
+      panic("user_vm_malloc failed!\n");
+    memset(mem, 0, sizeof(uint8) * PGSIZE);
+    map_pages(pagetable, oldsz, PGSIZE, (uint64) mem, prot_to_type(PROT_READ | PROT_WRITE, 1));
+  }
+  return newsz;
+}
+
+// # added @ lab2_challenge2
+uint64 malloc(int n) {
+  if (heap_init_flag == 0) {
+    current->heap_sz = USER_FREE_ADDRESS_START;
+    uint64 addr = current->heap_sz;
+    growprocess(sizeof(mem_control_block));
+    pte_t *pte = page_walk(current->pagetable, addr, 0);
+    mem_control_block *first_mcb = (mem_control_block *) PTE2PA(*pte);
+    current->heap_mem_begin = (uint64) first_mcb;
+    first_mcb->nxt = first_mcb;
+    first_mcb->size = 0;
+    current->heap_mem_end = (uint64) first_mcb;
+    heap_init_flag = 1;
+  }
+
+  mem_control_block *head = (mem_control_block *) current->heap_mem_begin;
+  mem_control_block *tail = (mem_control_block *) current->heap_mem_end;
+
+  for (; head->nxt != tail; head = head->nxt) {
+    if (head->size >= n && head->is_available) {
+      head->is_available = 0;
+      return head->offset + sizeof(mem_control_block);
+    }
+  }
+
+  uint64 allocate_addr = current->heap_sz;
+  growprocess((uint64) (sizeof(mem_control_block) + n + 8));
+  pte_t *pte = page_walk(current->pagetable, allocate_addr, 0);
+  mem_control_block *cur = (mem_control_block *) (PTE2PA(*pte) + (allocate_addr & 0xFFF));
+  uint64 amo = (8 - ((uint64) cur % 8)) % 8;
+  cur = (mem_control_block *) ((uint64) cur + amo);
+
+  cur->is_available = 0;
+  cur->offset = allocate_addr;
+  cur->size = n;
+  cur->nxt = head->nxt;
+
+  head->nxt = cur;
+  head = (mem_control_block *) current->heap_mem_begin;
+  return allocate_addr + sizeof(mem_control_block);
+}
+
+// # added @ lab2_challenge2
+void free(void *addr) {
+  addr = (void *) ((uint64) addr - sizeof(mem_control_block));
+  pte_t *pte = page_walk(current->pagetable, (uint64) addr, 0);
+  mem_control_block *cur = (mem_control_block *) (PTE2PA(*pte) + ((uint64) addr & 0xFFF));
+  uint64 amo = (8 - ((uint64) cur % 8)) % 8;
+  cur = (mem_control_block *) ((uint64) cur + amo);
+  if (cur->is_available)
+    panic("the memory has been freed before!\n");
+  cur->is_available = 1;
 }

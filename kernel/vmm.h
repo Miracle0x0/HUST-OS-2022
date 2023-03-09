@@ -3,6 +3,17 @@
 
 #include "riscv.h"
 
+// # added @ lab2_challenge2
+/*
+ * @brief user momery control block 内存控制块结构体
+ */
+typedef struct mem_control_block {
+  int is_available;// * 标记是否可用
+  int size;        // * block 大小
+  uint64 offset;
+  struct mem_control_block *nxt;
+} mem_control_block;
+
 /* --- utility functions for virtual address mapping --- */
 int map_pages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm);
 // permission codes.
@@ -30,5 +41,12 @@ void kern_vm_init(void);
 void *user_va_to_pa(pagetable_t page_dir, void *va);
 void user_vm_map(pagetable_t page_dir, uint64 va, uint64 size, uint64 pa, int perm);
 void user_vm_unmap(pagetable_t page_dir, uint64 va, uint64 size, int free);
+
+// # added @ lab2_challenge2
+// 将 newsz 与 oldsz 之间的 vitual address 映射到 physical address.
+uint64 user_vm_malloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz);
+
+uint64 malloc(int n);
+void free(void *addr);
 
 #endif

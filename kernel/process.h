@@ -16,8 +16,9 @@ typedef struct trapframe_t {
 
   // kernel page table. added @lab2_1
   /* offset:272 */ uint64 kernel_satp;
-}trapframe;
+} trapframe;
 
+// # modified @ lab2_challenge2
 // the extremely simple definition of process, used for begining labs of PKE
 typedef struct process_t {
   // pointing to the stack used in trap handling.
@@ -25,16 +26,23 @@ typedef struct process_t {
   // user page table
   pagetable_t pagetable;
   // trapframe storing the context of a (User mode) process.
-  trapframe* trapframe;
-}process;
+  trapframe *trapframe;
+
+  // # added @ lab2_challenge2
+  uint64 heap_sz;
+  uint64 heap_mem_begin, heap_mem_end;
+} process;
 
 // switch to run user app
-void switch_to(process*);
+void switch_to(process *);
 
 // current running process
-extern process* current;
+extern process *current;
 
 // address of the first free page in our simple heap. added @lab2_2
 extern uint64 g_ufree_page;
+
+// # added @ lab2_challenge2
+int growprocess(uint64 n);
 
 #endif
